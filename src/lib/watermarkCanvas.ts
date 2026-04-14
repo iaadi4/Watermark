@@ -1,7 +1,13 @@
 export interface WatermarkOptions {
   watermarkUrl: string;
-  position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
-  scaleRatio?: number; // e.g., 0.15 for 15% width relative to base image
+  position: 
+    | 'top-left' | 'top-center' | 'top-right'
+    | 'center-left' | 'center' | 'center-right'
+    | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  scaleRatio?: number; // 0.1 to 1.0
+  opacity?: number;    // 0 to 1.0
+  offsetX?: number;    // Pixels
+  offsetY?: number;    // Pixels
 }
 
 export async function applyWatermark(
@@ -17,62 +23,87 @@ export async function applyWatermark(
     }
 
     const baseImg = new Image();
-    // crossOrigin anonymous is mandatory for fetching URLs (like Google Photos =d format)
     baseImg.crossOrigin = 'anonymous'; 
-    baseImg.onerror = () => reject(new Error('Failed to load base image: ' + imageUrl));
+    baseImg.onerror = () => reject(new Error('Failed to load base image'));
     baseImg.onload = () => {
-      // Size canvas to exactly match original image
       canvas.width = baseImg.width;
       canvas.height = baseImg.height;
 
-      // Draw base image onto canvas
       ctx.drawImage(baseImg, 0, 0);
 
       const wmImg = new Image();
       wmImg.crossOrigin = 'anonymous';
       wmImg.onerror = () => reject(new Error('Failed to load watermark image'));
       wmImg.onload = () => {
-        // Calculate dynamic dimensions to respect aspect ratio
+        // Calculate dimensions relative to the shortest side for better consistency
+        const shortestSide = Math.min(canvas.width, canvas.height);
         const scaleRatio = options.scaleRatio || 0.15;
-        const wmWidth = canvas.width * scaleRatio;
+        
+        const wmWidth = shortestSide * scaleRatio;
         const wmRatio = wmImg.height / wmImg.width;
         const wmHeight = wmWidth * wmRatio;
 
-        // Positioning logic
-        const padding = canvas.width * 0.05; // 5% padding from the nearest edge
+        const manualOffsetX = options.offsetX || 0;
+        const manualOffsetY = options.offsetY || 0;
+        
+        // Edge padding (5% of shortest side)
+        const edgePadding = shortestSide * 0.05;
+        
         let x = 0;
         let y = 0;
 
+        // Snapped Positioning Logic
         switch (options.position) {
-          case 'bottom-right':
-            x = canvas.width - wmWidth - padding;
-            y = canvas.height - wmHeight - padding;
+          case 'top-left':
+            x = edgePadding;
+            y = edgePadding;
             break;
-          case 'bottom-left':
-            x = padding;
-            y = canvas.height - wmHeight - padding;
+          case 'top-center':
+            x = (canvas.width / 2) - (wmWidth / 2);
+            y = edgePadding;
             break;
           case 'top-right':
-            x = canvas.width - wmWidth - padding;
-            y = padding;
+            x = canvas.width - wmWidth - edgePadding;
+            y = edgePadding;
             break;
-          case 'top-left':
-            x = padding;
-            y = padding;
+          case 'center-left':
+            x = edgePadding;
+            y = (canvas.height / 2) - (wmHeight / 2);
+            break;
+          case 'center':
+            x = (canvas.width / 2) - (wmWidth / 2);
+            y = (canvas.height / 2) - (wmHeight / 2);
+            break;
+          case 'center-right':
+            x = canvas.width - wmWidth - edgePadding;
+            y = (canvas.height / 2) - (wmHeight / 2);
+            break;
+          case 'bottom-left':
+            x = edgePadding;
+            y = canvas.height - wmHeight - edgePadding;
+            break;
+          case 'bottom-center':
+            x = (canvas.width / 2) - (wmWidth / 2);
+            y = canvas.height - wmHeight - edgePadding;
+            break;
+          case 'bottom-right':
+            x = canvas.width - wmWidth - edgePadding;
+            y = canvas.height - wmHeight - edgePadding;
             break;
         }
 
-        ctx.drawImage(wmImg, x, y, wmWidth, wmHeight);
+        // Apply manual offsets
+        x += manualOffsetX;
+        y += manualOffsetY;
 
-        // Safe Blob Export
+        // Apply Opacity
+        ctx.globalAlpha = options.opacity !== undefined ? options.opacity : 1.0;
+        ctx.drawImage(wmImg, x, y, wmWidth, wmHeight);
+        ctx.globalAlpha = 1.0; // Reset
+
         canvas.toBlob((blob) => {
-          // Aggressive memory cleanup immediately inside callback
+          // Cleanup
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          canvas.width = 0;
-          canvas.height = 0;
-          baseImg.src = '';
-          wmImg.src = '';
-          
           if (blob) {
             resolve(blob);
           } else {
