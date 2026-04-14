@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ChangeEvent, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, ChangeEvent } from "react";
 import { processAndDownloadZip, InputSource } from "../lib/processEngine";
 import { 
   Folder, 
@@ -9,10 +9,17 @@ import {
   Trash2, 
   Image as ImageIcon,
   CheckCircle2,
-  AlertCircle
+  Eye,
+  Sliders
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -23,11 +30,112 @@ type Position =
   | 'center-left' | 'center' | 'center-right'
   | 'bottom-left' | 'bottom-center' | 'bottom-right';
 
+// ─── Live Preview ──────────────────────────────────────────────
+function LivePreview({
+  imageUrl,
+  watermarkUrl,
+  position,
+  scale,
+  opacity,
+  offsetX,
+  offsetY,
+}: {
+  imageUrl: string;
+  watermarkUrl: string;
+  position: Position;
+  scale: number;
+  opacity: number;
+  offsetX: number;
+  offsetY: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const [wmNatural, setWmNatural] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    img.src = imageUrl;
+  }, [imageUrl]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setWmNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    img.src = watermarkUrl;
+  }, [watermarkUrl]);
+
+  const getWatermarkStyle = useCallback((): React.CSSProperties => {
+    if (!containerRef.current || !naturalSize.w || !wmNatural.w) {
+      return { display: 'none' };
+    }
+
+    const displayW = containerRef.current.clientWidth;
+    const ratio = displayW / naturalSize.w;
+
+    const shortestSide = Math.min(naturalSize.w, naturalSize.h);
+    const wmWidthNat = shortestSide * scale;
+    const wmRatio = wmNatural.h / wmNatural.w;
+    const wmHeightNat = wmWidthNat * wmRatio;
+    const edgePadding = shortestSide * 0.05;
+
+    let x = 0, y = 0;
+
+    switch (position) {
+      case 'top-left':      x = edgePadding; y = edgePadding; break;
+      case 'top-center':    x = (naturalSize.w / 2) - (wmWidthNat / 2); y = edgePadding; break;
+      case 'top-right':     x = naturalSize.w - wmWidthNat - edgePadding; y = edgePadding; break;
+      case 'center-left':   x = edgePadding; y = (naturalSize.h / 2) - (wmHeightNat / 2); break;
+      case 'center':        x = (naturalSize.w / 2) - (wmWidthNat / 2); y = (naturalSize.h / 2) - (wmHeightNat / 2); break;
+      case 'center-right':  x = naturalSize.w - wmWidthNat - edgePadding; y = (naturalSize.h / 2) - (wmHeightNat / 2); break;
+      case 'bottom-left':   x = edgePadding; y = naturalSize.h - wmHeightNat - edgePadding; break;
+      case 'bottom-center': x = (naturalSize.w / 2) - (wmWidthNat / 2); y = naturalSize.h - wmHeightNat - edgePadding; break;
+      case 'bottom-right':  x = naturalSize.w - wmWidthNat - edgePadding; y = naturalSize.h - wmHeightNat - edgePadding; break;
+    }
+
+    x += offsetX;
+    y += offsetY;
+
+    return {
+      position: 'absolute',
+      left: x * ratio,
+      top: y * ratio,
+      width: wmWidthNat * ratio,
+      height: wmHeightNat * ratio,
+      opacity,
+      pointerEvents: 'none',
+      transition: 'all 0.15s ease-out',
+    };
+  }, [naturalSize, wmNatural, position, scale, opacity, offsetX, offsetY]);
+
+  const [wmStyle, setWmStyle] = useState<React.CSSProperties>({ display: 'none' });
+
+  useEffect(() => { setWmStyle(getWatermarkStyle()); }, [getWatermarkStyle]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(() => setWmStyle(getWatermarkStyle()));
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, [getWatermarkStyle]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full rounded-2xl overflow-hidden border-[3px] border-black bg-[repeating-conic-gradient(#e5e5e5_0%_25%,#fff_0%_50%)] bg-[length:16px_16px]"
+    >
+      <img src={imageUrl} alt="Preview" className="w-full h-auto block" onLoad={() => setWmStyle(getWatermarkStyle())} />
+      <img src={watermarkUrl} alt="Watermark" style={wmStyle} className="object-contain" />
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────
 export default function WatermarkApp() {
   const [sources, setSources] = useState<InputSource[]>([]);
   const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   
   // Watermark Settings
   const [position, setPosition] = useState<Position>('bottom-right');
@@ -62,6 +170,7 @@ export default function WatermarkApp() {
 
   const startProcessing = async () => {
     if (!watermarkUrl || sources.length === 0) return;
+    setDialogOpen(false);
     setIsProcessing(true);
     
     await processAndDownloadZip({
@@ -86,93 +195,148 @@ export default function WatermarkApp() {
     'bottom-left', 'bottom-center', 'bottom-right'
   ];
 
+  const canConfigure = sources.length > 0 && watermarkUrl;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="grid lg:grid-cols-2 gap-8">
-        
-        {/* Step 1: Assets */}
-        <div className="space-y-6">
-          <div className="p-8 bg-white border-[4px] border-black rounded-[40px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-6">
-            <h2 className="text-2xl font-black flex items-center gap-3">
-              <Folder className="w-8 h-8 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
-              1. Load Photos
-            </h2>
-            
-            <div className="group relative border-[4px] border-dashed border-gray-300 rounded-3xl p-10 hover:border-black transition-colors cursor-pointer bg-gray-50 flex flex-col items-center justify-center text-center">
-              <input 
-                type="file" 
-                // @ts-expect-error non-standard attributes
-                webkitdirectory="true" 
-                directory="true" 
-                multiple 
-                onChange={handleFolderSelect}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <UploadCloud className="w-8 h-8 text-white" />
-              </div>
-              <p className="font-black text-xl mb-1">Select Input Folder</p>
-              <p className="text-sm font-bold text-gray-500">Only images will be processed</p>
+      
+      {/* Upload Cards */}
+      <div className="grid md:grid-cols-2 gap-8">
+        {/* Step 1: Load Photos */}
+        <div className="p-8 bg-white border-[4px] border-black rounded-[40px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-6">
+          <h2 className="text-2xl font-black flex items-center gap-3">
+            <Folder className="w-8 h-8 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
+            1. Load Photos
+          </h2>
+          
+          <div className="group relative border-[4px] border-dashed border-gray-300 rounded-3xl p-10 hover:border-black transition-colors cursor-pointer bg-gray-50 flex flex-col items-center justify-center text-center flex-1">
+            <input 
+              type="file" 
+              // @ts-expect-error non-standard attributes
+              webkitdirectory="true" 
+              directory="true" 
+              multiple 
+              onChange={handleFolderSelect}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+            <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform pointer-events-none">
+              <UploadCloud className="w-8 h-8 text-white" />
             </div>
-
-            {sources.length > 0 && (
-              <div className="flex items-center justify-between p-4 bg-[var(--color-primary)] border-[3px] border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-6 h-6" />
-                  <span className="font-black text-lg">{sources.length} items queued</span>
-                </div>
-                <button onClick={clearQueue} className="p-2 hover:bg-black hover:text-white rounded-lg transition-colors">
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
-            )}
+            <p className="font-black text-xl mb-1 pointer-events-none">Select Input Folder</p>
+            <p className="text-sm font-bold text-gray-500 pointer-events-none">Only images will be processed</p>
           </div>
 
-          <div className="p-8 bg-white border-[4px] border-black rounded-[40px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-6">
-            <h2 className="text-2xl font-black flex items-center gap-3">
-              <ImageIcon className="w-8 h-8 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
-              2. Add Watermark
-            </h2>
-            
-            <div className="flex items-center gap-4">
-              <div className="relative w-24 h-24 border-[3px] border-black rounded-2xl bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                {watermarkUrl ? (
-                  <img src={watermarkUrl} className="w-full h-full object-contain p-2" alt="Watermark preview" />
-                ) : (
-                  <ImageIcon className="w-8 h-8 text-gray-300" />
-                )}
+          {sources.length > 0 && (
+            <div className="flex items-center justify-between p-4 bg-[var(--color-primary)] border-[3px] border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6" />
+                <span className="font-black text-lg">{sources.length} items queued</span>
               </div>
-              <div className="flex-1 space-y-2">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleWatermarkUpload}
-                  className="block w-full text-sm text-gray-500
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-xl file:border-[3px] file:border-black
-                    file:text-sm file:font-black
-                    file:bg-black file:text-white
-                    hover:file:bg-[var(--color-primary)] hover:file:text-black transition-all cursor-pointer"
-                />
-                <p className="text-xs font-bold text-gray-400">Recommended: PNG with transparency</p>
-              </div>
+              <button onClick={clearQueue} className="p-2 hover:bg-black hover:text-white rounded-lg transition-colors">
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Step 2: Controls */}
-        <div className="space-y-6">
-          <div className="p-8 bg-white border-[4px] border-black rounded-[40px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-8">
-            <h2 className="text-2xl font-black flex items-center gap-3">
-              <Settings2 className="w-8 h-8 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
-              3. Style & Position
-            </h2>
+        {/* Step 2: Add Watermark */}
+        <div className="p-8 bg-white border-[4px] border-black rounded-[40px] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-6">
+          <h2 className="text-2xl font-black flex items-center gap-3">
+            <ImageIcon className="w-8 h-8 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
+            2. Add Watermark
+          </h2>
+          
+          <div className="group relative border-[4px] border-dashed border-gray-300 rounded-3xl p-10 hover:border-black transition-colors cursor-pointer bg-gray-50 flex flex-col items-center justify-center text-center flex-1">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleWatermarkUpload}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+            {watermarkUrl ? (
+              <div className="w-20 h-20 border-[3px] border-black rounded-2xl bg-white flex items-center justify-center overflow-hidden mb-4 pointer-events-none">
+                <img src={watermarkUrl} className="w-full h-full object-contain p-2" alt="Watermark" />
+              </div>
+            ) : (
+              <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform pointer-events-none">
+                <ImageIcon className="w-8 h-8 text-white" />
+              </div>
+            )}
+            <p className="font-black text-xl mb-1 pointer-events-none">{watermarkUrl ? 'Watermark loaded' : 'Upload Watermark'}</p>
+            <p className="text-sm font-bold text-gray-500 pointer-events-none">{watermarkUrl ? 'Click to change' : 'PNG with transparency recommended'}</p>
+          </div>
 
+          {watermarkUrl && (
+            <div className="flex items-center justify-between p-4 bg-[var(--color-primary)] border-[3px] border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-6 h-6" />
+                <span className="font-black text-lg">Watermark ready</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Configure & Generate Button */}
+      <button
+        onClick={() => setDialogOpen(true)}
+        disabled={!canConfigure || isProcessing}
+        className={cn(
+          "w-full flex items-center justify-center gap-4 font-black text-2xl py-6 rounded-[32px] border-[4px] border-black transition-all",
+          canConfigure && !isProcessing
+            ? "bg-black text-white shadow-[8px_8px_0px_0px_rgba(178,255,76,1)] hover:shadow-[12px_12px_0px_0px_rgba(178,255,76,1)] hover:-translate-y-1 active:translate-y-0 cursor-pointer"
+            : "bg-gray-100 text-gray-300 border-gray-300 cursor-not-allowed"
+        )}
+      >
+        <Sliders className="w-8 h-8" />
+        Configure & Preview
+      </button>
+
+      {/* ─── Preview + Controls Dialog ─────────────────────── */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogTitle className="flex items-center gap-3 mb-1">
+            <Eye className="w-7 h-7 text-[var(--color-primary)] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]" />
+            Configure & Preview
+          </DialogTitle>
+          <DialogDescription>
+            Position your watermark, then generate output. Changes update live.
+          </DialogDescription>
+
+          <div className="grid lg:grid-cols-2 gap-8 mt-6">
+            {/* Left: Live Preview */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-gray-400">
+                <Eye className="w-4 h-4" />
+                Preview
+              </div>
+              {canConfigure && (
+                <LivePreview
+                  imageUrl={sources[0].url}
+                  watermarkUrl={watermarkUrl!}
+                  position={position}
+                  scale={scale}
+                  opacity={opacity}
+                  offsetX={offsetX}
+                  offsetY={offsetY}
+                />
+              )}
+              <p className="text-xs font-bold text-gray-400 text-center">
+                First image from queue · {sources.length} total
+              </p>
+            </div>
+
+            {/* Right: Controls */}
             <div className="space-y-6">
+              <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-gray-400">
+                <Settings2 className="w-4 h-4" />
+                Controls
+              </div>
+
               {/* Position Grid */}
               <div className="space-y-3">
-                <label className="font-black text-sm uppercase tracking-wider text-gray-400">Snapping Position</label>
-                <div className="grid grid-cols-3 gap-2 w-fit mx-auto sm:mx-0">
+                <label className="font-black text-sm uppercase tracking-wider text-gray-400">Position</label>
+                <div className="grid grid-cols-3 gap-2 w-fit">
                   {positions.map((pos) => (
                     <button
                       key={pos}
@@ -187,8 +351,8 @@ export default function WatermarkApp() {
               </div>
 
               {/* Sliders */}
-              <div className="grid sm:grid-cols-2 gap-6">
-                <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
                   <div className="flex justify-between items-end">
                     <label className="font-black text-sm uppercase tracking-wider text-gray-400">Scale</label>
                     <span className="font-black text-xs">{(scale * 100).toFixed(0)}%</span>
@@ -199,7 +363,7 @@ export default function WatermarkApp() {
                     className="w-full accent-black cursor-pointer"
                   />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex justify-between items-end">
                     <label className="font-black text-sm uppercase tracking-wider text-gray-400">Opacity</label>
                     <span className="font-black text-xs">{(opacity * 100).toFixed(0)}%</span>
@@ -212,7 +376,7 @@ export default function WatermarkApp() {
                 </div>
               </div>
 
-              {/* Adjustments */}
+              {/* Offsets */}
               <div className="grid grid-cols-2 gap-6 pt-4 border-t-[3px] border-black">
                 <div className="space-y-2">
                   <label className="font-black text-sm">X Offset</label>
@@ -231,26 +395,22 @@ export default function WatermarkApp() {
                   />
                 </div>
               </div>
+
+              {/* Generate Button */}
+              <button
+                onClick={startProcessing}
+                disabled={isProcessing}
+                className="w-full flex items-center justify-center gap-4 bg-black text-white font-black text-xl py-5 rounded-[24px] border-[4px] border-black shadow-[6px_6px_0px_0px_rgba(178,255,76,1)] hover:shadow-[10px_10px_0px_0px_rgba(178,255,76,1)] transition-all disabled:opacity-20 disabled:shadow-none hover:-translate-y-1 active:translate-y-0"
+              >
+                <Download className="w-6 h-6" />
+                Generate & Download ZIP
+              </button>
             </div>
-
-            <button
-               onClick={startProcessing}
-               disabled={isProcessing || !watermarkUrl || sources.length === 0}
-               className="w-full flex items-center justify-center gap-4 bg-black text-white font-black text-2xl py-6 rounded-[32px] border-[4px] border-black shadow-[8px_8px_0px_0px_rgba(178,255,76,1)] hover:shadow-[12px_12px_0px_0px_rgba(178,255,76,1)] transition-all disabled:opacity-20 disabled:shadow-none hover:-translate-y-1 active:translate-y-0"
-            >
-              {isProcessing ? (
-                <>Processing {progress.current}/{progress.total}...</>
-              ) : (
-                <>
-                  Generate Output
-                  <Download className="w-8 h-8" />
-                </>
-              )}
-            </button>
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
+      {/* Progress Bar */}
       {isProcessing && (
         <div className="p-8 bg-black border-[4px] border-black rounded-[40px] text-white space-y-4 shadow-[8px_8px_0px_0px_var(--color-primary)]">
           <div className="flex justify-between items-center">
@@ -272,10 +432,7 @@ export default function WatermarkApp() {
 
 function UploadCloud({ className }: { className?: string }) {
   return (
-    <svg 
-      className={className} 
-      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
       <path d="M12 12v9" />
       <path d="m16 16-4-4-4 4" />
