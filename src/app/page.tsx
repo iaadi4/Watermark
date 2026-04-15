@@ -2,8 +2,45 @@ import Link from "next/link";
 import { ArrowUpRight, CheckCircle2, Shield, Zap, CloudOff, Lock, Image, FolderOpen } from "lucide-react";
 
 export default function Home() {
+  const faqs = [
+    {
+      question: "Is this watermarking tool really free?",
+      answer: "Yes, Batch Watermark is completely free. There are no premium tiers, hidden fees, subscriptions, or forced watermarks applied by us. You can process an unlimited number of images without any restrictions."
+    },
+    {
+      question: "Do my photos get uploaded to a server?",
+      answer: "No. All image processing happens entirely within your web browser using HTML5 Canvas. Your photos never leave your device, ensuring maximum privacy and security for your personal or professional files."
+    },
+    {
+      question: "What image formats are supported?",
+      answer: "We support major web image formats including JPEG, PNG, and WebP. Since the processing leverages your browser's built-in capabilities, any format your browser can display natively can typically be watermarked."
+    },
+    {
+      question: "How many images can I process at once?",
+      answer: "You can batch process hundreds or even thousands of images at a time. The tool handles them sequentially to maintain optimal performance and avoid memory issues, applying your custom watermark template instantly."
+    }
+  ];
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer
+      }
+    }))
+  };
+
   return (
     <div className="w-full pb-0 bg-white selection:bg-[var(--color-primary)]">
+      {/* FAQ Schema */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-6 pt-12 lg:pt-24 pb-12 grid lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
@@ -159,6 +196,21 @@ export default function Home() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="max-w-7xl mx-auto px-6 py-16 space-y-12" id="faq">
+        <h2 className="px-4 py-2 bg-black text-white rounded-xl font-black text-4xl md:text-5xl border-[3px] border-black shadow-[6px_6px_0px_0px_var(--color-primary)] inline-block tracking-tight">
+          Frequently Asked Questions
+        </h2>
+        <div className="grid md:grid-cols-2 gap-8">
+          {faqs.map((faq, index) => (
+            <div key={index} className="bg-white rounded-[24px] border-[3px] border-black p-8 border-b-[6px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+              <h3 className="text-xl font-black text-black mb-3">{faq.question}</h3>
+              <p className="text-gray-700 font-medium leading-relaxed">{faq.answer}</p>
+            </div>
+          ))}
         </div>
       </section>
 

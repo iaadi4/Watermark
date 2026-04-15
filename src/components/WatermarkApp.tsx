@@ -146,6 +146,11 @@ export default function WatermarkApp() {
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
 
+  const [supportsDirPicker, setSupportsDirPicker] = useState(true);
+  useEffect(() => {
+    setSupportsDirPicker('showDirectoryPicker' in window);
+  }, []);
+
   const handleFolderSelect = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files).filter((f) => f.type.startsWith('image/'));
@@ -186,6 +191,13 @@ export default function WatermarkApp() {
         if (err.name === 'AbortError') {
           return; // user cancelled folder selection
         }
+        
+        console.error("Directory picker blocked:", err);
+        alert(
+          `Your browser blocked direct folder access (${err.message || err.name}).\n\n` +
+          `If you are using Brave, please turn OFF Brave Shields for this site (the lion icon in the address bar) and allow "File system access" in site settings.\n\n` +
+          `We will now fall back to downloading files sequentially, which may cause a "Save" prompt for every image.`
+        );
         useZip = true;
       }
     } else {
@@ -313,6 +325,21 @@ export default function WatermarkApp() {
       </div>
 
       {/* Configure & Generate Button */}
+      {!supportsDirPicker && (
+        <div className="bg-yellow-50 border-[3px] border-yellow-400 p-6 rounded-2xl flex items-center justify-between gap-4 text-yellow-900 shadow-[4px_4px_0px_0px_rgba(250,204,21,1)]">
+          <div className="flex items-start gap-4">
+            <span className="text-3xl mt-1">⚠️</span>
+            <div>
+              <p className="font-black text-xl mb-1">Your browser doesn't support direct folder writing.</p>
+              <p className="font-medium text-lg leading-snug">
+                Because you are using a browser like Safari or Firefox, downloading thousands of files will trigger repeated "Save" prompts or individual downloads. 
+                <strong className="block mt-2">👉 Switch to Chrome, Edge, or Brave for the ultimate seamless processing speed!</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => setDialogOpen(true)}
         disabled={!canConfigure || isProcessing}

@@ -18,7 +18,7 @@ const SITE_URL = "https://batch-watermark.vercel.app";
 export const metadata: Metadata = {
   title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
   description:
-    "Watermark hundreds of photos instantly in your browser. Batch Watermark is a free, privacy-first tool that processes images entirely client-side — no uploads, no servers, no sign-up required.",
+    "Watermark photos instantly in your browser. A free, privacy-first batch processor that works entirely client-side — no file uploads required.",
   metadataBase: new URL(SITE_URL),
   alternates: {
     canonical: "/",
@@ -26,17 +26,26 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
     description:
-      "Watermark hundreds of photos instantly in your browser. Free, private, and secure — no uploads required.",
+      "Watermark photos instantly in your browser. A free, privacy-first batch processor.",
     url: SITE_URL,
     siteName: "Batch Watermark",
     locale: "en_US",
     type: "website",
+    images: [
+      {
+        url: "/og.png",
+        width: 1200,
+        height: 630,
+        alt: "Batch Watermark Tool Preview",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
     description:
-      "Watermark hundreds of photos instantly in your browser. Free, private, and secure — no uploads required.",
+      "Watermark photos instantly in your browser. A free, privacy-first batch processor.",
+    images: ["/og.png"],
   },
   robots: {
     index: true,
