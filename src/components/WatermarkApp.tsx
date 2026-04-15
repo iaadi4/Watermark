@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from "react";
-import { processIntoDirectory, InputSource } from "../lib/processEngine";
+import { processIntoDirectory, processAndDownloadFallback, InputSource } from "../lib/processEngine";
 import { 
   Folder, 
   Download, 
@@ -133,7 +133,9 @@ function LivePreview({
 export default function WatermarkApp() {
   const [sources, setSources] = useState<InputSource[]>([]);
   const [watermarkUrl, setWatermarkUrl] = useState<string | null>(null);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [progress, setProgress] = useState({ current: 0, total: 0, currentFile: '' });
+  const [isDone, setIsDone] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   
@@ -158,7 +160,9 @@ export default function WatermarkApp() {
   const clearQueue = () => {
     sources.forEach(s => URL.revokeObjectURL(s.url));
     setSources([]);
-    setProgress({ current: 0, total: 0 });
+    setProgress({ current: 0, total: 0, currentFile: '' });
+    setIsDone(false);
+    setErrorCount(0);
   };
 
   const handleWatermarkUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -170,36 +174,54 @@ export default function WatermarkApp() {
 
   const startProcessing = async () => {
     if (!watermarkUrl || sources.length === 0) return;
-    
+
+    let useZip = false;
     let dirHandle;
-    try {
-      // @ts-ignore - TS doesn't have FileSystemDirectoryHandle by default
-      dirHandle = await window.showDirectoryPicker({
-        mode: 'readwrite',
-      });
-    } catch (e) {
-      console.log('User cancelled directory picker');
-      return;
+
+    if ('showDirectoryPicker' in window) {
+      try {
+        // @ts-ignore
+        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          return; // user cancelled folder selection
+        }
+        useZip = true;
+      }
+    } else {
+      useZip = true;
     }
 
     setDialogOpen(false);
     setIsProcessing(true);
-    
-    await processIntoDirectory({
-      items: sources,
-      watermarkUrl,
-      options: {
-        position,
-        scaleRatio: scale,
-        opacity,
-        offsetX,
-        offsetY
-      },
-      dirHandle,
-      onProgress: (current, total) => setProgress({ current, total })
-    });
+    setIsDone(false);
+    setErrorCount(0);
+    setProgress({ current: 0, total: sources.length, currentFile: '' });
 
-    setIsProcessing(false);
+    try {
+      let result;
+      const optionsPayload = {
+        items: sources,
+        watermarkUrl,
+        options: { position, scaleRatio: scale, opacity, offsetX, offsetY },
+        onProgress: (current: number, total: number, currentFile: string) =>
+          setProgress({ current, total, currentFile }),
+      };
+
+      if (useZip) {
+        result = await processAndDownloadFallback(optionsPayload);
+      } else {
+        result = await processIntoDirectory({ ...optionsPayload, dirHandle });
+      }
+
+      setErrorCount(result.errors);
+    } catch (e) {
+      console.error('Processing pipeline error:', e);
+      setErrorCount(sources.length); // treat all as failed
+    } finally {
+      setIsProcessing(false);
+      setIsDone(true);
+    }
   };
 
   const positions: Position[] = [
@@ -428,15 +450,42 @@ export default function WatermarkApp() {
         <div className="p-8 bg-black border-[4px] border-black rounded-[40px] text-white space-y-4 shadow-[8px_8px_0px_0px_var(--color-primary)]">
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-black uppercase tracking-widest">Active Pipeline</h3>
-            <span className="font-black text-[var(--color-primary)]">{(progress.current/progress.total * 100).toFixed(0)}%</span>
+            <span className="font-black text-[var(--color-primary)]">
+              {progress.total > 0 ? ((progress.current / progress.total) * 100).toFixed(0) : 0}%
+            </span>
           </div>
           <div className="w-full h-8 bg-gray-800 border-[3px] border-black rounded-2xl overflow-hidden relative">
-            <div 
-              className="h-full bg-[var(--color-primary)] transition-all duration-300 border-r-[3px] border-black" 
-              style={{ width: `${(progress.current/progress.total * 100)}%` }}
+            <div
+              className="h-full bg-[var(--color-primary)] transition-all duration-300 border-r-[3px] border-black"
+              style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
             />
           </div>
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Do not close this tab until processing completes</p>
+          <div className="flex justify-between items-center">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-tighter">Do not close this tab until processing completes</p>
+            <p className="text-xs font-bold text-gray-400 truncate max-w-[40%] text-right">{progress.currentFile}</p>
+          </div>
+          <p className="text-sm font-black text-gray-300">{progress.current} / {progress.total} images</p>
+        </div>
+      )}
+
+      {/* Done Banner */}
+      {isDone && !isProcessing && (
+        <div className={cn(
+          "p-8 border-[4px] border-black rounded-[40px] space-y-2",
+          errorCount === 0
+            ? "bg-[var(--color-primary)] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+            : "bg-yellow-300 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+        )}>
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-8 h-8" />
+            <h3 className="text-xl font-black uppercase tracking-widest">
+              {errorCount === 0 ? 'All done!' : `Done with ${errorCount} error${errorCount > 1 ? 's' : ''}`}
+            </h3>
+          </div>
+          <p className="text-sm font-bold">
+            {progress.total - errorCount} of {progress.total} images saved.
+            {errorCount > 0 && ' Check the console for details on failed files.'}
+          </p>
         </div>
       )}
     </div>

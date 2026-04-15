@@ -1,49 +1,73 @@
-import { applyWatermark, WatermarkOptions } from './watermarkCanvas';
+import { applyWatermark, loadImage, WatermarkOptions } from './watermarkCanvas';
 
-export type InputSource = 
-  | { type: 'local'; file: File; url: string };
+export type InputSource = { type: 'local'; file: File; url: string };
 
 export interface ProcessTask {
   items: InputSource[];
   watermarkUrl: string;
-  options: Omit<WatermarkOptions, 'watermarkUrl'>;
-  dirHandle: any; // Using any for FileSystemDirectoryHandle
-  onProgress?: (current: number, total: number) => void;
+  options: WatermarkOptions;
+  dirHandle?: any; // FileSystemDirectoryHandle (optional, undefined for fallback)
+  onProgress?: (current: number, total: number, currentFile: string) => void;
 }
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+export interface ProcessResult {
+  errors: number;
+}
 
-export async function processIntoDirectory(task: ProcessTask): Promise<void> {
+export async function processIntoDirectory(task: ProcessTask): Promise<ProcessResult> {
   const { items, watermarkUrl, options, dirHandle, onProgress } = task;
+  const watermarkImg = await loadImage(watermarkUrl);
+  let errors = 0;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    
     try {
-      // Phase 1: Apply Watermark
-      const watermarkedBlob = await applyWatermark(item.url, {
-        watermarkUrl,
-        ...options
-      });
-
-      // Phase 2: Save to Output Directory
-      const fileHandle = await dirHandle.getFileHandle(item.file.name, { create: true });
-      const writable = await fileHandle.createWritable();
-      await writable.write(watermarkedBlob);
-      await writable.close();
-
-      // Report progress
-      if (onProgress) {
-        onProgress(i + 1, items.length);
-      }
+      const blob = await applyWatermark(item.url, watermarkImg, item.file.type, options);
+      const fh = await dirHandle.getFileHandle(item.file.name, { create: true });
+      const ws = await fh.createWritable();
+      await ws.write(blob);
+      await ws.close();
     } catch (e) {
-      console.error("Failed processing file:", item.file.name, e);
+      console.error(`[watermark] failed: ${item.file.name}`, e);
+      errors++;
     }
+    onProgress?.(i + 1, items.length, item.file.name);
+    await new Promise<void>(r => setTimeout(r, 30));
+  }
+  return { errors };
+}
 
-    // Tiny breathing room for browser thread
-    await delay(30);
+export async function processAndDownloadFallback(task: ProcessTask): Promise<ProcessResult> {
+  const { items, watermarkUrl, options, onProgress } = task;
+  const watermarkImg = await loadImage(watermarkUrl);
+  let errors = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    try {
+      const blob = await applyWatermark(item.url, watermarkImg, item.file.type, options);
+      
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = item.file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup ObjectURL
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 2000);
+    } catch (e) {
+      console.error(`[watermark] failed: ${item.file.name}`, e);
+      errors++;
+    }
+    
+    onProgress?.(i + 1, items.length, item.file.name);
+    
+    // Add slightly larger delay to pace browser downloads
+    // otherwise the browser may block hundreds of rapid simultaneous triggers
+    await new Promise<void>(r => setTimeout(r, 200));
   }
 
-  // Finalize Processing
-  onProgress?.(items.length, items.length); 
+  return { errors };
 }
