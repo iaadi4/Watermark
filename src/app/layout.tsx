@@ -13,9 +13,35 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://batch-watermark.vercel.app";
+
 export const metadata: Metadata = {
-  title: "Watermark | Clean & Secure Photo Processing",
-  description: "A fast, client-side photo processing and watermarking tool.",
+  title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
+  description:
+    "Watermark hundreds of photos instantly in your browser. Batch Watermark is a free, privacy-first tool that processes images entirely client-side — no uploads, no servers, no sign-up required.",
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
+    description:
+      "Watermark hundreds of photos instantly in your browser. Free, private, and secure — no uploads required.",
+    url: SITE_URL,
+    siteName: "Batch Watermark",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Batch Watermark — Free Client-Side Photo Watermarking Tool",
+    description:
+      "Watermark hundreds of photos instantly in your browser. Free, private, and secure — no uploads required.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -23,14 +49,54 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // JSON-LD Structured Data
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "Batch Watermark",
+    url: SITE_URL,
+    description:
+      "A free, privacy-first photo watermarking tool that processes images entirely in your browser. No uploads, no servers, no sign-up required.",
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "Any",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    featureList: [
+      "Client-side image processing",
+      "Batch watermarking",
+      "No file uploads",
+      "Privacy-first architecture",
+      "Supports PNG, JPEG, and WebP",
+    ],
+    browserRequirements: "Requires a modern browser with JavaScript enabled",
+  };
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-white text-zinc-900 selection:bg-zinc-200">
+        {/* Skip Navigation Link — accessibility & SEO */}
+        <a
+          href="#main-content"
+          className="skip-nav-link"
+        >
+          Skip to main content
+        </a>
+
         <Navbar />
-        <main className="flex-1 flex flex-col">
+
+        <main id="main-content" className="flex-1 flex flex-col">
           {children}
         </main>
       </body>

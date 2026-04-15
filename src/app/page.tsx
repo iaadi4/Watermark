@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight, CheckCircle2, Shield, Zap, CloudOff } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Shield, Zap, CloudOff, Lock, Image, FolderOpen } from "lucide-react";
 
 export default function Home() {
   return (
-    <div className="w-full pb-20 bg-white selection:bg-[var(--color-primary)]">
+    <div className="w-full pb-0 bg-white selection:bg-[var(--color-primary)]">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-6 pt-12 lg:pt-24 pb-12 grid lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-8">
@@ -11,7 +11,7 @@ export default function Home() {
             Navigating digital watermarking for success
           </h1>
           <p className="text-xl text-gray-800 font-medium max-w-lg">
-            Our client-side processing tool helps you secure and brand your photos instantly without uploading them to any third-party server.
+            Our client-side processing tool helps you secure and brand your photos instantly without uploading them to any third-party server. Protect your creative work with custom watermarks applied directly in your browser.
           </p>
           <div className="pt-4">
             <Link 
@@ -105,7 +105,63 @@ export default function Home() {
           </div>
         </div>
       </section>
-      
+
+      {/* How It Works Section — adds visible text content for SEO (pushing well past 100 words) */}
+      <section className="max-w-7xl mx-auto px-6 py-16 space-y-12" id="how-it-works">
+        <h2 className="px-4 py-2 bg-black text-white rounded-xl font-black text-4xl md:text-5xl border-[3px] border-black shadow-[6px_6px_0px_0px_var(--color-primary)] inline-block tracking-tight">
+          How It Works
+        </h2>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          <div className="bg-white rounded-[24px] border-[3px] border-black p-8 border-b-[6px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+            <div className="w-14 h-14 bg-[var(--color-primary)] rounded-xl border-[3px] border-black flex items-center justify-center mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <FolderOpen className="w-7 h-7 text-black" />
+            </div>
+            <h3 className="text-xl font-black text-black mb-3">Select Your Photos</h3>
+            <p className="text-gray-700 font-medium leading-relaxed">
+              Choose a folder of images directly from your device using the native file picker. We support all major formats including JPEG, PNG, and WebP. Your photos never leave your computer and are processed entirely within the browser for maximum privacy and security.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-[24px] border-[3px] border-black p-8 border-b-[6px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+            <div className="w-14 h-14 bg-[var(--color-primary)] rounded-xl border-[3px] border-black flex items-center justify-center mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <Image className="w-7 h-7 text-black" />
+            </div>
+            <h3 className="text-xl font-black text-black mb-3">Configure Your Watermark</h3>
+            <p className="text-gray-700 font-medium leading-relaxed">
+              Customise every aspect of your watermark — from the text, font, and size to the position, opacity, and rotation angle. Preview your watermark on a sample image before applying it across your entire library. The configuration dialog gives you precise control over every visual parameter.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-[24px] border-[3px] border-black p-8 border-b-[6px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+            <div className="w-14 h-14 bg-[var(--color-primary)] rounded-xl border-[3px] border-black flex items-center justify-center mb-6 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+              <Zap className="w-7 h-7 text-black" />
+            </div>
+            <h3 className="text-xl font-black text-black mb-3">Batch Process Instantly</h3>
+            <p className="text-gray-700 font-medium leading-relaxed">
+              Hit the process button and watch as hundreds of photos are watermarked in seconds using the HTML5 Canvas API. The processing pipeline runs entirely in-browser with zero server calls, ensuring your images stay private and the experience remains lightning fast regardless of your internet connection.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Privacy Section */}
+      <section className="max-w-7xl mx-auto px-6 py-16" id="privacy">
+        <div className="bg-zinc-50 rounded-[32px] border-[3px] border-black p-10 lg:p-14 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="flex items-start gap-6 mb-8">
+            <div className="w-16 h-16 bg-[var(--color-primary)] rounded-2xl border-[3px] border-black flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] shrink-0">
+              <Lock className="w-8 h-8 text-black" />
+            </div>
+            <div>
+              <h2 className="text-3xl lg:text-4xl font-black text-black mb-3">Your Privacy Comes First</h2>
+              <p className="text-lg text-gray-700 font-medium leading-relaxed max-w-3xl">
+                Unlike cloud-based watermarking services that require you to upload sensitive photos to remote servers, Batch Watermark processes every image entirely within your web browser using client-side JavaScript and the Canvas API. No data ever leaves your device, no cookies track your usage, and no account is required. This architecture ensures your photographs, intellectual property, and personal data remain completely under your control at all times.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="max-w-7xl mx-auto px-6 py-16">
         <div className="bg-black rounded-[40px] p-12 lg:p-16 flex flex-col lg:flex-row items-center justify-between border-[3px] border-black border-b-[12px] shadow-[12px_12px_0px_0px_rgba(0,0,0,0.2)]">
@@ -124,7 +180,41 @@ export default function Home() {
            </div>
         </div>
       </section>
+
+      {/* Footer — semantic <footer> landmark for SEO */}
+      <footer className="w-full border-t-[4px] border-black bg-white">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          <div className="grid md:grid-cols-3 gap-10">
+            <div>
+              <h3 className="text-xl font-black text-black mb-4">Batch Watermark</h3>
+              <p className="text-gray-600 font-medium leading-relaxed">
+                A free, open-source photo watermarking tool. Process images entirely in your browser with zero server-side processing. Fast, private, and secure.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-black mb-4">Quick Links</h3>
+              <ul className="space-y-2 text-gray-600 font-medium">
+                <li><Link href="/dashboard" className="hover:text-black transition-colors">Launch App</Link></li>
+                <li><Link href="#features" className="hover:text-black transition-colors">Features</Link></li>
+                <li><Link href="#how-it-works" className="hover:text-black transition-colors">How It Works</Link></li>
+                <li><Link href="#privacy" className="hover:text-black transition-colors">Privacy</Link></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-black mb-4">Technical Details</h3>
+              <ul className="space-y-2 text-gray-600 font-medium">
+                <li>Built with Next.js &amp; React</li>
+                <li>HTML5 Canvas Processing</li>
+                <li>File System Access API</li>
+                <li>Zero Server Dependencies</li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-10 pt-8 border-t-[3px] border-black/10 text-center text-gray-500 font-medium">
+            <p>&copy; {new Date().getFullYear()} Batch Watermark. All rights reserved. Built with privacy in mind.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
-
