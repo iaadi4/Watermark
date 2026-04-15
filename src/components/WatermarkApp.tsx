@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from "react";
-import { processAndDownloadZip, InputSource } from "../lib/processEngine";
+import { processIntoDirectory, InputSource } from "../lib/processEngine";
 import { 
   Folder, 
   Download, 
@@ -170,10 +170,22 @@ export default function WatermarkApp() {
 
   const startProcessing = async () => {
     if (!watermarkUrl || sources.length === 0) return;
+    
+    let dirHandle;
+    try {
+      // @ts-ignore - TS doesn't have FileSystemDirectoryHandle by default
+      dirHandle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+      });
+    } catch (e) {
+      console.log('User cancelled directory picker');
+      return;
+    }
+
     setDialogOpen(false);
     setIsProcessing(true);
     
-    await processAndDownloadZip({
+    await processIntoDirectory({
       items: sources,
       watermarkUrl,
       options: {
@@ -183,6 +195,7 @@ export default function WatermarkApp() {
         offsetX,
         offsetY
       },
+      dirHandle,
       onProgress: (current, total) => setProgress({ current, total })
     });
 
@@ -403,7 +416,7 @@ export default function WatermarkApp() {
                 className="w-full flex items-center justify-center gap-4 bg-black text-white font-black text-xl py-5 rounded-[24px] border-[4px] border-black shadow-[6px_6px_0px_0px_rgba(178,255,76,1)] hover:shadow-[10px_10px_0px_0px_rgba(178,255,76,1)] transition-all disabled:opacity-20 disabled:shadow-none hover:-translate-y-1 active:translate-y-0"
               >
                 <Download className="w-6 h-6" />
-                Generate & Download ZIP
+                Process into Folder...
               </button>
             </div>
           </div>

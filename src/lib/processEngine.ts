@@ -1,5 +1,4 @@
 import { applyWatermark, WatermarkOptions } from './watermarkCanvas';
-import JSZip from 'jszip';
 
 export type InputSource = 
   | { type: 'local'; file: File; url: string };
@@ -8,14 +7,14 @@ export interface ProcessTask {
   items: InputSource[];
   watermarkUrl: string;
   options: Omit<WatermarkOptions, 'watermarkUrl'>;
+  dirHandle: any; // Using any for FileSystemDirectoryHandle
   onProgress?: (current: number, total: number) => void;
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export async function processAndDownloadZip(task: ProcessTask): Promise<void> {
-  const { items, watermarkUrl, options, onProgress } = task;
-  const zip = new JSZip();
+export async function processIntoDirectory(task: ProcessTask): Promise<void> {
+  const { items, watermarkUrl, options, dirHandle, onProgress } = task;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -27,8 +26,11 @@ export async function processAndDownloadZip(task: ProcessTask): Promise<void> {
         ...options
       });
 
-      // Phase 2: Add to ZIP
-      zip.file(item.file.name, watermarkedBlob);
+      // Phase 2: Save to Output Directory
+      const fileHandle = await dirHandle.getFileHandle(item.file.name, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(watermarkedBlob);
+      await writable.close();
 
       // Report progress
       if (onProgress) {
@@ -36,24 +38,12 @@ export async function processAndDownloadZip(task: ProcessTask): Promise<void> {
       }
     } catch (e) {
       console.error("Failed processing file:", item.file.name, e);
-    } finally {
-      URL.revokeObjectURL(item.url);
     }
 
     // Tiny breathing room for browser thread
     await delay(30);
   }
 
-  // Finalize Local Download
+  // Finalize Processing
   onProgress?.(items.length, items.length); 
-  const zipBlob = await zip.generateAsync({ type: 'blob' });
-  const downloadUrl = URL.createObjectURL(zipBlob);
-  const link = document.createElement('a');
-  link.href = downloadUrl;
-  link.download = `watermark_pack_${Date.now()}.zip`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
 }
